@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+
+  LambdaName:
+    Type: String
+    Description: Nome do lambda
+    Default: LambdaFunction
+
+  SNSName:
+    Type: String
+    Description: Nome do SNS que irá ser vinculado a uma fila
+    Default: sns-aluno
+
+  SQSName:
+    Type: String
+    Description: Nome da SQS
+    Default: sqs-aluno
+
+  SQSDLQName:
+    Type: String
+    Description: Nome da SQS-DLQ
+    Default: sqs-aluno-dlq
+
+Resources:
+  #Declaração da SNS(Tópico)
+  SNSAluno:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+        DisplayName: sns-aluno
+        TopicName: sns-aluno
+
+  #Declaração da SQS-DLQ(Fila Morta)
+  SQSAlunoQueueDLQ:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+        QueueName: sqs-aluno-dlq
+
+  #Declarção da SQS (padrão)
+  SQSAlunoQueue:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+        QueueName: sqs-aluno
+        RedrivePolicy: 
+          deadLetterTargetArn: !GetAtt SQSAlunoQueueDLQ.Arn
+          maxReceiveCount: 5
+
+  # allows SNS Topic to publish to the queues
+  SQSPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SQSQueue
+      PolicyDocument:
+        Statement:
+          - Sid: Permite que a SNS faça publicação de mensagem na SQS
+            Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action:
+              - "SQS:SendMessage"
+            Resource: "*"
+            Condition:
+              ArnEquals: 
+                aws:SourceArn:
+                  #!Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${SnsPublishName}"
+                  !Ref SNSAluno
